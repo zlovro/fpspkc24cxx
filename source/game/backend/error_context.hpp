@@ -37,4 +37,4 @@ public:
     }
 } ErrorContext;
 
-inline ErrorContext gErrCtx = {};
+ErrorContext gErrCtx = {};

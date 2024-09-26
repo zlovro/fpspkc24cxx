@@ -5,27 +5,35 @@ set(CMAKE_CXX_STANDARD 26)
 #set(CMAKE_CXX_FLAGS -g)
 #set(CMAKE_C_FLAGS -g)
 #
-#SET(CMAKE_C_FLAGS_DEBUG "-D_DEBUG")
-#SET(CMAKE_CXX_FLAGS_DEBUG  "-D_DEBUG")
 
-#set(CMAKE_CXX_FLAGS "-g -O0")
+set(CMAKE_C_FLAGS_DEBUG "-D_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-D_DEBUG")
 
-include_directories(include source)
+set(CMAKE_CXX_FLAGS "-g -O0")
+
+include_directories(include source/game/backend source source/shaders source/game)
 link_directories(lib)
 
 add_executable(fpspkc24cxx
         source/main.cpp
-        source/glad.c
-        source/shaders/basic_vtx.hlsl.hpp
-        source/error_context.hpp
-        source/shaders/basic_frag.hlsl.hpp
-        source/variable_bitset.hpp
-        source/types.hpp
+        include/glad/glad.c
+        source/game/backend/error_context.hpp
+        source/game/backend/variable_bitset.hpp
+        source/game/backend/types.hpp
         source/shaders/shader.hpp
-        source/constants.hpp
-        source/math_util.hpp)
+        source/game/backend/constants.hpp
+        source/game/backend/math_util.hpp
+        source/game/backend/kb_chunk_mesh.hpp
+        source/game/backend/kb_chunk_archive.hpp
+        source/game/backend/binary_reader.hpp
+        source/game/backend/kb_util.hpp
+        source/game/backend/kb_io.hpp
+        source/game/backend/camera.hpp
+        source/game/backend/game_object.hpp
+        source/game/backend/globals.hpp
+        source/game/game.hpp)
 
-target_link_libraries(fpspkc24cxx glfw3dll)
+target_link_libraries(fpspkc24cxx glfw3dll z)
 
 
 if (WIN32)

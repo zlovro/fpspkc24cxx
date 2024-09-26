@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -7,27 +9,58 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
-#include <numbers>
-#include <bitset>
 
-#include <shaders/basic_vtx.hlsl.hpp>
-#include <shaders/basic_frag.hlsl.hpp>
 #include <error_context.hpp>
 #include <variable_bitset.hpp>
 #include <math_util.hpp>
 #include <windows.h>
 
 #include "constants.hpp"
+#include "globals.hpp"
+#include "game/game.hpp"
 #include "shaders/shader.hpp"
-
-#ifdef DEBUG
-pragma message ( "C Preprocessor got here!" )
-#endif
-
-GLFWwindow* gGameWnd;
 
 #define GLFW_FIRST_KEY GLFW_KEY_SPACE
 #define GLFW_KEY_COUNT GLFW_KEY_LAST - GLFW_FIRST_KEY + 1
+
+bool glInit()
+{
+    glfwInit();
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    auto videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+    gGameWnd = glfwCreateWindow(videoMode->width, videoMode->height, "FPS PAKRAC 24", nullptr, nullptr);
+    if (gGameWnd == nullptr)
+    {
+        gErrCtx.setErr("Failed to create GLFW window\n");
+        return false;
+    }
+
+    glfwMakeContextCurrent(gGameWnd);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        gErrCtx.setErr("Failed to initialize GLAD");
+        return false;
+    }
+
+    glViewport(0, 0, videoMode->width, videoMode->height);
+
+    glfwSetFramebufferSizeCallback(gGameWnd, [](GLFWwindow*, const int pWidth, const int pHeight)
+    {
+        glViewport(0, 0, pWidth, pHeight);
+    });
+
+    glEnable(GL_DEPTH_TEST);
+
+    initializeShaders();
+
+    return true;
+}
 
 typedef struct GameInputsStruct
 {
@@ -91,65 +124,9 @@ void gameProcessInput(GLFWwindow* pWnd)
 
 void gameMain(const std::vector<std::string>& pArgs)
 {
-    // VariableBitset::test();
-    // return;
-
-    glfwInit();
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    auto videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-
-    gGameWnd = glfwCreateWindow(videoMode->width, videoMode->height, "FPS PAKRAC 24", nullptr, nullptr);
-    if (gGameWnd == nullptr)
-    {
-        gErrCtx.setErr("Failed to create GLFW window\n");
-        return;
-    }
-
-    glfwMakeContextCurrent(gGameWnd);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        gErrCtx.setErr("Failed to initialize GLAD");
-        return;
-    }
-
-    glViewport(0, 0, videoMode->width, videoMode->height);
-
-    glfwSetFramebufferSizeCallback(gGameWnd, [](GLFWwindow*, const int pWidth, const int pHeight)
-    {
-        glViewport(0, 0, pWidth, pHeight);
-    });
-
-    glEnable(GL_DEPTH_TEST);
-    // glEnable(GL_CULL_FACE);
-    // glCullFace(GL_FRONT_FACE);
-
-    float vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        0.0f, 0.5f, 0.0f
-    };
-
     auto time = 0.0F;
 
-    u32 vbo;
-    glGenBuffers(1, &vbo);
-
-    auto basicShader = Shader(SHADER_VTX_BASIC, SHADER_FRAG_BASIC);
-    basicShader.use();
-
-    u32 vao;
-    glGenVertexArrays(1, &vao);
-
-    auto           camPos   = glm::vec3(0, 0, 3);
-    constexpr auto cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    float yaw = 0, pitch = 0;
-    float fov = 75;
+    gGame->gameOnStart();
 
     const float targetFps       = 144;
     const float targetFrameRate = 1 / targetFps;
@@ -177,37 +154,10 @@ void gameMain(const std::vector<std::string>& pArgs)
         gameProcessInput(gGameWnd);
 
         // render shit to the screen here
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0, 0, 0, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::vec3 direction;
-        direction.x      = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        direction.y      = sin(glm::radians(pitch));
-        direction.z      = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        auto cameraFront = glm::normalize(direction);
-        auto view        = glm::lookAt(camPos, camPos + cameraFront, cameraUp);
-        auto pos         = glm::vec3(6, 5 + (sin(time + 2.0F / 3 * PI) + 1) * 2, 0);
-
-
-        auto posMat = translate(MAT_4_IDENTITY, pos);
-        auto model       = glm::rotate(posMat, glm::radians(time * 180), VEC_3_UP);
-
-        int width = 0, height = 0;
-        glfwGetFramebufferSize(gGameWnd, &width, &height);
-        auto projection = glm::perspective(glm::radians(fov), (float)width / height, 0.1F, 10000.0F);
-
-        basicShader.setMtx4("view", view);
-        basicShader.setMtx4("model", model);
-        basicShader.setMtx4("projection", projection);
-
-        glBindVertexArray(vao);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-        glEnableVertexAttribArray(0);
-
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        gGame->gameOnGfxUpdate();
 
         auto fps = 1 / deltaTime;
         if (fpsTimer >= 1)
@@ -227,6 +177,8 @@ void gameMain(const std::vector<std::string>& pArgs)
 
 void gameOnExit()
 {
+    delete gGame;
+
     glfwTerminate();
 }
 
@@ -234,8 +186,13 @@ int main(const int pArgc, char* pArgv[])
 {
     atexit(gameOnExit);
 
-    gameMain(std::vector<std::string>(pArgv, pArgv + pArgc));
-    printf("%s", gErrCtx.getMsg().c_str());
+    if (glInit())
+    {
+        gGame = new Game();
+
+        gameMain(std::vector<std::string>(pArgv, pArgv + pArgc));
+        printf("%s", gErrCtx.getMsg().c_str());
+    }
 
     return -gErrCtx.isErr();
 }

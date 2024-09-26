@@ -4,7 +4,10 @@
 #include <glad/glad.h>
 #include <error_context.hpp>
 
-typedef struct ShaderStruct
+#include "camera.hpp"
+#include "kb_io.hpp"
+
+typedef struct ShaderRawStruct
 {
 private:
     static GLuint compile(const char* pSrc, GLenum pType)
@@ -36,8 +39,28 @@ private:
 public:
     GLuint id;
 
-    ShaderStruct(const char* pVtxSrc, const char* pFragSrc)
+    #ifdef DEBUG
+    static ShaderRawStruct loadShader(const std::string& pShaderName)
     {
+        auto basePath = "source/shaders/" + pShaderName + "_";
+        return ShaderRawStruct(readFileToString(basePath + "frag.glsl").c_str(), readFileToString(basePath + "vtx.glsl").c_str());
+    }
+    #else
+    static ShaderStruct loadShader(const char* pShaderName)
+    {
+        return ShaderStruct("", "");
+    }
+    #endif
+
+    ShaderRawStruct(GLuint pId)
+    {
+        id = pId;
+    }
+
+    ShaderRawStruct(const char* pVtxSrc, const char* pFragSrc)
+    {
+        printf("compile shader\n");
+
         const auto vtx = compile(pVtxSrc, GL_VERTEX_SHADER);
         if (gErrCtx.isErr())
         {
@@ -78,4 +101,36 @@ public:
     {
         glUseProgram(id);
     }
-} Shader;
+} ShaderRaw;
+
+ShaderRaw* gShaderBasic;
+
+void initializeShaders()
+{
+    gShaderBasic = new ShaderRaw(ShaderRaw::loadShader("basic"));
+}
+
+void deleteShaders()
+{
+
+}
+
+typedef struct ShaderProjectedStruct : ShaderRawStruct
+{
+private:
+
+public:
+    Camera* cam;
+
+    ShaderProjectedStruct(Camera* pCam) : ShaderRawStruct(gShaderBasic->id)
+    {
+        cam = pCam;
+    }
+
+    void copyCameraProperties()
+    {
+        setMtx4("view", cam->view);
+        setMtx4("model", cam->getModelMtx());
+        setMtx4("projection", cam->projection);
+    }
+} ShaderProjected;
